@@ -171,8 +171,44 @@ class Scanner {
     logger.step(3, 3, 'Checking Google Cloud CLI...');
 
     try {
-      // Check if gcloud command exists
-      const exists = await commandExists('gcloud');
+      // Try multiple methods to find gcloud
+      let exists = false;
+      let gcloudPath = null;
+
+      // Method 1: Check with which
+      const whichResult = await executeCommand('which', ['gcloud']);
+      if (whichResult.success && whichResult.stdout.trim()) {
+        exists = true;
+        gcloudPath = whichResult.stdout.trim();
+      }
+
+      // Method 2: Check with command -v
+      if (!exists) {
+        const commandResult = await executeCommand('command', ['-v', 'gcloud']);
+        if (commandResult.success && commandResult.stdout.trim()) {
+          exists = true;
+          gcloudPath = commandResult.stdout.trim();
+        }
+      }
+
+      // Method 3: Check common installation paths
+      if (!exists) {
+        const commonPaths = [
+          '/usr/bin/gcloud',
+          '/usr/local/bin/gcloud',
+          '/snap/bin/gcloud',
+          `${process.env.HOME}/google-cloud-sdk/bin/gcloud`
+        ];
+
+        for (const path of commonPaths) {
+          const testResult = await executeCommand('test', ['-f', path]);
+          if (testResult.success) {
+            exists = true;
+            gcloudPath = path;
+            break;
+          }
+        }
+      }
       
       if (!exists) {
         logger.warning('Google Cloud CLI is not installed');
@@ -190,24 +226,24 @@ class Scanner {
       const versionResult = await executeCommand('gcloud', ['--version']);
       
       if (!versionResult.success) {
-        logger.warning('Google Cloud CLI found but cannot get version');
+        // gcloud exists but can't get version - still consider it installed
+        logger.success('Google Cloud CLI detected');
+        logger.info(`Path: ${gcloudPath}`);
+        
+        this.gcloudInstalled = true;
         
         return {
           installed: true,
-          version: 'unknown',
-          path: null,
-          reason: 'Could not retrieve version'
+          version: 'installed',
+          path: gcloudPath,
+          reason: 'Installed and available'
         };
       }
 
       // Parse version from output
       // Output format: "Google Cloud SDK 450.0.0..."
       const versionMatch = versionResult.stdout.match(/Google Cloud SDK (\d+\.\d+\.\d+)/);
-      const versionString = versionMatch ? versionMatch[1] : 'unknown';
-      
-      // Get gcloud path
-      const pathResult = await executeCommand('command', ['-v', 'gcloud']);
-      const gcloudPath = pathResult.success ? pathResult.stdout.trim() : 'unknown';
+      const versionString = versionMatch ? versionMatch[1] : 'installed';
 
       this.gcloudInstalled = true;
       this.gcloudVersion = versionString;

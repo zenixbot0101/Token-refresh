@@ -180,11 +180,17 @@ class Worker {
       let storedToken = token;
       let metadata = {
         account: authManager.getActiveAccount(),
-        projectId: authManager.getProjectId() || this.config.gcloud?.projectId,
+        projectId: this.config.gcloud?.projectId || authManager.getProjectId() || null,
         authenticated: true,
         tokenCreatedAt: now,
         tokenExpiresAt: tokenExpiresAt
       };
+
+      // Remove undefined fields
+      if (!metadata.projectId) {
+        delete metadata.projectId;
+        logger.warning('No project ID available - continuing without it');
+      }
 
       // Encrypt token if enabled (for user path)
       if (this.encryptionEnabled && this.encryptionKey) {

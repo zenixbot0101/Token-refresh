@@ -164,7 +164,7 @@ class ConfigManager {
     const required = [
       'firebase.projectId',
       'firebase.databaseURL',
-      'firebase.serviceAccountPath',
+      'firebase.serviceAccount',
       'user.id'
     ];
 
@@ -176,14 +176,6 @@ class ConfigManager {
         errors.push(`Missing required config: ${path}`);
       }
     });
-
-    // Validate service account file exists
-    if (config?.firebase?.serviceAccountPath) {
-      const serviceAccountPath = path.resolve(config.firebase.serviceAccountPath);
-      if (!fs.existsSync(serviceAccountPath)) {
-        errors.push(`Service account file not found: ${serviceAccountPath}`);
-      }
-    }
 
     return {
       valid: errors.length === 0,

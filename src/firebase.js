@@ -32,23 +32,17 @@ class FirebaseManager {
         throw new Error('Firebase configuration is missing');
       }
 
-      const { projectId, databaseURL, serviceAccountPath } = config.firebase;
+      const { projectId, databaseURL, serviceAccount } = config.firebase;
 
       if (!projectId || !databaseURL) {
         throw new Error('Firebase projectId and databaseURL are required');
       }
 
-      // Resolve service account path
-      const resolvedPath = path.resolve(serviceAccountPath);
-
-      if (!fs.existsSync(resolvedPath)) {
-        throw new Error(`Service account file not found: ${resolvedPath}`);
+      if (!serviceAccount) {
+        throw new Error('Firebase service account credentials are required');
       }
 
-      // Read service account
-      const serviceAccount = JSON.parse(fs.readFileSync(resolvedPath, 'utf8'));
-
-      // Initialize Firebase Admin
+      // Initialize Firebase Admin with credentials object
       this.app = admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         databaseURL: databaseURL

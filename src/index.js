@@ -7,6 +7,7 @@ import logger from './logger.js';
 import configManager from './config.js';
 import Scanner from './scanner.js';
 import GCloudInstaller from './installer.js';
+import NodeInstaller from './node-installer.js';
 import firebaseManager from './firebase.js';
 import authManager from './auth.js';
 import worker from './worker.js';
@@ -20,7 +21,7 @@ const program = new Command();
 const APP_VERSION = '1.0.0';
 
 /**
- * Setup command - Initial configuration
+ * Setup command - Automated configuration
  */
 async function setupCommand() {
   try {
@@ -30,42 +31,77 @@ async function setupCommand() {
 
     // Step 1: System scan
     const scanner = new Scanner();
+    logger.info('Scanning system...');
+    
     const validation = await scanner.validateRequirements();
-
     scanner.displaySummary(validation.results);
 
-    if (!validation.valid) {
-      logger.error('System requirements not met');
-      validation.errors.forEach(error => logger.error(`  - ${error}`));
-      process.exit(1);
+    // Step 2: Auto-install Node.js if needed
+    if (!validation.results.node.compatible) {
+      if (!validation.results.node.installed) {
+        logger.warning('Node.js is not installed');
+        
+        const { installNode } = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'installNode',
+            message: 'Install Node.js 20.x automatically?',
+            default: true
+          }
+        ]);
+
+        if (!installNode) {
+          logger.error('Node.js 20+ is required to continue');
+          process.exit(1);
+        }
+
+        const nodeInstaller = new NodeInstaller();
+        const nodeInstallResult = await nodeInstaller.install();
+
+        if (!nodeInstallResult.success) {
+          logger.error('Node.js installation failed');
+          nodeInstaller.displayManualInstructions();
+          process.exit(1);
+        }
+
+        logger.success('Node.js installed successfully');
+        logger.warning('Please restart this setup script');
+        process.exit(0);
+      } else {
+        logger.error('Node.js version is too old (requires 20+)');
+        logger.info('Current version:', validation.results.node.version);
+        
+        const nodeInstaller = new NodeInstaller();
+        nodeInstaller.displayManualInstructions();
+        process.exit(1);
+      }
     }
 
     const capabilities = scanner.getCapabilities(validation.results);
 
-    // Step 2: Install gcloud if needed
+    // Step 3: Auto-install gcloud if needed
     if (capabilities.needsGCloudInstall) {
-      logger.info('Google Cloud CLI installation required');
+      logger.warning('Google Cloud CLI is not installed');
       
       const { installGCloud } = await inquirer.prompt([
         {
           type: 'confirm',
           name: 'installGCloud',
-          message: 'Install Google Cloud CLI now?',
+          message: 'Install Google Cloud CLI automatically?',
           default: true
         }
       ]);
 
       if (!installGCloud) {
-        logger.warning('Google Cloud CLI is required to continue');
-        logger.info('Please install manually and run setup again');
-        process.exit(0);
+        logger.error('Google Cloud CLI is required to continue');
+        process.exit(1);
       }
 
       const installer = new GCloudInstaller();
       const installResult = await installer.installWithFallback(validation.results.os);
 
       if (!installResult.success) {
-        logger.error('Installation failed');
+        logger.error('Google Cloud CLI installation failed');
         if (installResult.manual) {
           logger.info('Please install manually and run setup again');
         }
@@ -76,13 +112,33 @@ async function setupCommand() {
         logger.warning('Please restart your terminal and run setup again');
         process.exit(0);
       }
+
+      logger.success('Google Cloud CLI installed successfully');
     }
 
-    // Step 3: Firebase configuration
-    await setupFirebase();
+    // Step 4: Firebase configuration (simplified)
+    const firebaseConfig = await setupFirebaseSimplified();
 
-    // Step 4: Google Cloud authentication
-    logger.info('Google Cloud authentication is required');
+    // Step 5: Google Cloud authentication
+    logger.header('Google Cloud Authentication');
+    logger.info('You will be redirected to Google login page');
+    logger.info('Please sign in with your Google account');
+    console.log();
+
+    const { proceedAuth } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'proceedAuth',
+        message: 'Ready to authenticate with Google Cloud?',
+        default: true
+      }
+    ]);
+
+    if (!proceedAuth) {
+      logger.error('Authentication is required');
+      process.exit(1);
+    }
+
     const authResult = await authManager.login();
 
     if (!authResult.success) {
@@ -90,21 +146,27 @@ async function setupCommand() {
       process.exit(1);
     }
 
-    // Step 5: Configure project (optional)
-    const { configureProject } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'configureProject',
-        message: 'Configure Google Cloud project?',
-        default: false
-      }
-    ]);
+    // Step 6: Configure project (optional)
+    const projectResult = await authManager.getCurrentProject();
+    
+    if (!projectResult.project) {
+      logger.warning('No Google Cloud project configured');
+      
+      const { configureProject } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'configureProject',
+          message: 'Configure Google Cloud project now?',
+          default: false
+        }
+      ]);
 
-    if (configureProject) {
-      await authManager.configureProject();
+      if (configureProject) {
+        await authManager.configureProject();
+      }
     }
 
-    // Step 6: Save state
+    // Step 7: Save state
     configManager.updateState({
       setupCompleted: true,
       gcloudInstalled: true,
@@ -113,12 +175,22 @@ async function setupCommand() {
       projectId: authManager.getProjectId()
     });
 
-    // Step 7: Setup complete
+    // Step 8: Setup complete
     logger.header('Setup Complete');
     logger.success('All components configured successfully');
     console.log();
 
-    // Step 8: Ask to start worker
+    // Display summary
+    logger.table({
+      'Firebase Project': firebaseConfig.firebase.projectId,
+      'Google Account': authManager.getActiveAccount(),
+      'User ID': firebaseConfig.user.id,
+      'Encryption': firebaseConfig.security.encryptTokens ? 'Enabled ✓' : 'Disabled'
+    });
+
+    console.log();
+
+    // Step 9: Ask to start worker
     const { startWorker } = await inquirer.prompt([
       {
         type: 'confirm',
@@ -131,7 +203,9 @@ async function setupCommand() {
     if (startWorker) {
       await startCommand();
     } else {
-      logger.info('Start the worker anytime with: gcloud-token-manager start');
+      logger.info('Start the worker anytime with:');
+      logger.info('  npm start');
+      logger.info('  or: gcloud-token-manager start');
     }
   } catch (error) {
     logger.error('Setup failed', error);
@@ -140,37 +214,31 @@ async function setupCommand() {
 }
 
 /**
- * Setup Firebase configuration
+ * Simplified Firebase setup - no file creation needed
  */
-async function setupFirebase() {
+async function setupFirebaseSimplified() {
   logger.header('Firebase Configuration');
 
+  logger.info('Please provide your Firebase credentials');
+  logger.info('You can find these in Firebase Console → Project Settings → Service Accounts');
+  console.log();
+
+  // Check if configuration already exists
   let config = configManager.loadConfig();
-
-  if (!config) {
-    logger.info('No configuration found, creating new configuration');
-    config = {};
-  }
-
-  // Check if Firebase is already configured
-  if (config.firebase?.projectId && config.firebase?.databaseURL) {
+  
+  if (config?.firebase?.projectId) {
     logger.info('Existing Firebase configuration found');
-    logger.table({
-      'Project ID': config.firebase.projectId,
-      'Database URL': config.firebase.databaseURL
-    });
-
+    
     const { useExisting } = await inquirer.prompt([
       {
         type: 'confirm',
         name: 'useExisting',
-        message: 'Use existing configuration?',
+        message: 'Use existing Firebase configuration?',
         default: true
       }
     ]);
 
     if (useExisting) {
-      // Test connection
       const initResult = await firebaseManager.initialize(config);
       if (initResult.success) {
         return config;
@@ -179,7 +247,7 @@ async function setupFirebase() {
     }
   }
 
-  // Prompt for Firebase configuration
+  // Prompt for Firebase credentials
   const answers = await inquirer.prompt([
     {
       type: 'input',
@@ -190,7 +258,7 @@ async function setupFirebase() {
     {
       type: 'input',
       name: 'databaseURL',
-      message: 'Firebase Database URL:',
+      message: 'Firebase Database URL (e.g., https://your-project.firebaseio.com):',
       validate: (input) => {
         if (!input.trim()) return 'Database URL is required';
         if (!input.startsWith('https://')) return 'URL must start with https://';
@@ -199,15 +267,32 @@ async function setupFirebase() {
     },
     {
       type: 'input',
-      name: 'serviceAccountPath',
-      message: 'Service Account Key Path:',
-      default: './firebase-key.json',
-      validate: (input) => input.trim().length > 0 || 'Path is required'
+      name: 'clientEmail',
+      message: 'Firebase Client Email (firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com):',
+      validate: (input) => {
+        if (!input.trim()) return 'Client email is required';
+        if (!input.includes('@') || !input.includes('iam.gserviceaccount.com')) {
+          return 'Invalid service account email format';
+        }
+        return true;
+      }
+    },
+    {
+      type: 'input',
+      name: 'privateKey',
+      message: 'Firebase Private Key (paste the entire key including -----BEGIN/END PRIVATE KEY-----):',
+      validate: (input) => {
+        if (!input.trim()) return 'Private key is required';
+        if (!input.includes('BEGIN PRIVATE KEY') || !input.includes('END PRIVATE KEY')) {
+          return 'Invalid private key format';
+        }
+        return true;
+      }
     }
   ]);
 
-  // Check for user ID
-  let userId = config.user?.id;
+  // Generate user ID
+  let userId = config?.user?.id;
   
   if (!userId) {
     const { useGeneratedId } = await inquirer.prompt([
@@ -251,12 +336,22 @@ async function setupFirebase() {
     logger.success('Encryption key generated');
   }
 
+  // Create service account object from provided credentials
+  const serviceAccount = {
+    type: 'service_account',
+    project_id: answers.projectId,
+    private_key: answers.privateKey.trim(),
+    client_email: answers.clientEmail.trim(),
+    token_uri: 'https://oauth2.googleapis.com/token',
+    universe_domain: 'googleapis.com'
+  };
+
   // Save configuration
   const newConfig = {
     firebase: {
-      projectId: answers.projectId,
-      databaseURL: answers.databaseURL,
-      serviceAccountPath: answers.serviceAccountPath
+      projectId: answers.projectId.trim(),
+      databaseURL: answers.databaseURL.trim(),
+      serviceAccount: serviceAccount
     },
     user: {
       id: userId
@@ -280,6 +375,7 @@ async function setupFirebase() {
 
   if (!initResult.success) {
     logger.error('Firebase connection failed');
+    logger.error('Please verify your credentials and try again');
     throw new Error('Failed to connect to Firebase');
   }
 
@@ -303,7 +399,7 @@ async function startCommand() {
     
     if (!config) {
       logger.error('No configuration found');
-      logger.info('Run setup first: gcloud-token-manager setup');
+      logger.info('Run setup first: npm run setup');
       process.exit(1);
     }
 
@@ -313,7 +409,7 @@ async function startCommand() {
     if (!validation.valid) {
       logger.error('Invalid configuration');
       validation.errors.forEach(error => logger.error(`  - ${error}`));
-      logger.info('Run setup again: gcloud-token-manager setup');
+      logger.info('Run setup again: npm run setup');
       process.exit(1);
     }
 
@@ -345,7 +441,6 @@ async function startCommand() {
     }
 
     // Keep the process running
-    // The worker handles its own lifecycle
   } catch (error) {
     logger.error('Failed to start', error);
     process.exit(1);
@@ -388,7 +483,7 @@ async function statusCommand() {
     
     if (!config) {
       logger.warning('No configuration found');
-      logger.info('Run setup: gcloud-token-manager setup');
+      logger.info('Run setup: npm run setup');
       return;
     }
 
@@ -481,7 +576,7 @@ program
 
 program
   .command('setup')
-  .description('Initial setup and configuration')
+  .description('Automated setup and configuration')
   .action(setupCommand);
 
 program

@@ -29,42 +29,42 @@ A Node.js CLI application for managing Google Cloud authentication tokens with F
 - Firebase Realtime Database
 - Firebase service account credentials
 
-## Installation
+## Quick Start (Fully Automated)
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd gcloud-token-manager
-```
-
-2. Install dependencies:
+### 1. Install Dependencies
 ```bash
 npm install
 ```
 
-3. Configure Firebase:
+### 2. Run Automated Setup
 ```bash
-cp config/config.example.json config/config.json
+npm run setup
 ```
 
-4. Edit `config/config.json` with your Firebase credentials:
-```json
-{
-  "firebase": {
-    "projectId": "your-firebase-project-id",
-    "databaseURL": "https://your-project.firebaseio.com",
-    "serviceAccountPath": "./firebase-key.json"
-  },
-  "user": {
-    "id": "unique-user-id"
-  }
-}
-```
+The setup wizard will automatically:
+- ✅ Detect and install Node.js 20+ if needed
+- ✅ Detect and install Google Cloud CLI if needed
+- ✅ Prompt for Firebase credentials (4 simple inputs)
+- ✅ Generate user ID and encryption key
+- ✅ Open browser for Google authentication
+- ✅ Test all connections
+- ✅ Start the worker
 
-5. Download your Firebase service account key:
-   - Go to Firebase Console → Project Settings → Service Accounts
-   - Generate new private key
-   - Save as `firebase-key.json` in the project root
+**No manual file creation needed!**
+
+### 3. Provide Firebase Information
+
+When prompted, enter:
+- **Firebase Project ID**: Your project ID
+- **Firebase Database URL**: https://your-project.firebaseio.com
+- **Firebase Client Email**: firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com
+- **Firebase Private Key**: (paste entire key including -----BEGIN/END-----)
+
+Get these from: Firebase Console → Project Settings → Service Accounts
+
+### 4. Done! 🎉
+
+The worker is now running and will refresh tokens every 30 minutes.
 
 ## Usage
 

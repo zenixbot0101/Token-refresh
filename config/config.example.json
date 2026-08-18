@@ -2,7 +2,14 @@
   "firebase": {
     "projectId": "your-firebase-project-id",
     "databaseURL": "https://your-project.firebaseio.com",
-    "serviceAccountPath": "./firebase-key.json"
+    "serviceAccount": {
+      "type": "service_account",
+      "project_id": "your-firebase-project-id",
+      "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+      "client_email": "firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com",
+      "token_uri": "https://oauth2.googleapis.com/token",
+      "universe_domain": "googleapis.com"
+    }
   },
   "user": {
     "id": "unique-user-id"
@@ -14,8 +21,5 @@
   "security": {
     "encryptTokens": true,
     "encryptionKey": "generate-a-secure-32-byte-key"
-  },
-  "gcloud": {
-    "projectId": ""
   }
 }

@@ -278,15 +278,20 @@ async function setupFirebaseSimplified() {
       }
     },
     {
-      type: 'input',
+      type: 'editor',
       name: 'privateKey',
-      message: 'Firebase Private Key (paste the entire key including -----BEGIN/END PRIVATE KEY-----):',
+      message: 'Firebase Private Key (will open editor - paste the entire key including -----BEGIN/END PRIVATE KEY-----):',
+      default: '-----BEGIN PRIVATE KEY-----\n\n-----END PRIVATE KEY-----',
       validate: (input) => {
         if (!input.trim()) return 'Private key is required';
         if (!input.includes('BEGIN PRIVATE KEY') || !input.includes('END PRIVATE KEY')) {
-          return 'Invalid private key format';
+          return 'Invalid private key format - must include BEGIN and END markers';
         }
         return true;
+      },
+      postProcess: (input) => {
+        // Ensure proper line breaks
+        return input.trim();
       }
     }
   ]);
@@ -337,10 +342,31 @@ async function setupFirebaseSimplified() {
   }
 
   // Create service account object from provided credentials
+  // Ensure private key has proper line breaks
+  let privateKey = answers.privateKey.trim();
+  
+  // If private key doesn't have literal \n characters, it's probably already formatted correctly
+  // If it has escaped \n as literal text (\\n), we need to replace them with actual newlines
+  if (privateKey.includes('\\n') && !privateKey.includes('\n')) {
+    // Has literal \n characters - need to convert to actual newlines
+    privateKey = privateKey.replace(/\\n/g, '\n');
+  }
+  
+  // Ensure it starts and ends correctly
+  if (!privateKey.startsWith('-----BEGIN PRIVATE KEY-----')) {
+    logger.error('Private key must start with -----BEGIN PRIVATE KEY-----');
+    throw new Error('Invalid private key format');
+  }
+  
+  if (!privateKey.endsWith('-----END PRIVATE KEY-----')) {
+    logger.error('Private key must end with -----END PRIVATE KEY-----');
+    throw new Error('Invalid private key format');
+  }
+
   const serviceAccount = {
     type: 'service_account',
     project_id: answers.projectId,
-    private_key: answers.privateKey.trim(),
+    private_key: privateKey,
     client_email: answers.clientEmail.trim(),
     token_uri: 'https://oauth2.googleapis.com/token',
     universe_domain: 'googleapis.com'

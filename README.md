@@ -37,7 +37,31 @@ A Node.js CLI application for managing Google Cloud authentication tokens with F
 npm install
 ```
 
-### 2. Run Automated Setup
+### 2. Copy and Edit Config
+
+**Option A: Use template**
+```bash
+# Create config directory
+mkdir -p ~/.gcloud-token-manager
+
+# Copy template
+cp config/config.json ~/.gcloud-token-manager/config.json
+
+# Edit config
+nano ~/.gcloud-token-manager/config.json
+```
+
+**Fill in these values:**
+- `firebase.projectId` - Your Firebase project ID
+- `firebase.databaseURL` - https://your-project.firebaseio.com
+- `firebase.serviceAccount.private_key` - Paste your private key
+- `firebase.serviceAccount.client_email` - Your service account email
+- `gcloud.projectId` - Your **REAL** GCP project ID (not placeholder!)
+- `user.id` - Generate with `openssl rand -hex 16`
+
+See [CONFIG_GUIDE.md](./CONFIG_GUIDE.md) for detailed instructions.
+
+**Option B: Run setup wizard**
 ```bash
 npm run setup
 ```
@@ -53,20 +77,6 @@ The setup wizard will automatically:
 
 **No manual file creation needed!**
 
-### 3. Provide Firebase Information
-
-When prompted, enter:
-- **Firebase Project ID**: Your project ID
-- **Firebase Database URL**: https://your-project.firebaseio.com
-- **Firebase Client Email**: firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com
-- **Firebase Private Key**: (paste entire key including -----BEGIN/END-----)
-
-Get these from: Firebase Console → Project Settings → Service Accounts
-
-### 4. Done! 🎉
-
-The worker is now running and will refresh tokens every 30 minutes.
-
 ## Usage
 
 ### Initial Setup
@@ -77,13 +87,6 @@ or
 ```bash
 node src/index.js setup
 ```
-
-This will:
-1. Detect your operating system
-2. Check/install Google Cloud CLI
-3. Configure Firebase connection
-4. Guide you through Google Cloud authentication
-5. Start the worker
 
 ### Start Worker
 ```bash
@@ -114,7 +117,39 @@ gcloud-token-manager logout
 gcloud-token-manager stop
 ```
 
-## Security
+### Debug Bot Token
+```bash
+node debug-firebase-token.js
+```
+
+Shows current token in `/globalToken` path for Discord bot integration.
+
+## 🔧 Important: GCP Project ID
+
+**Make sure to use your REAL GCP project ID, not placeholder!**
+
+```bash
+# Get your project ID
+gcloud config get-value project
+
+# Or list all projects
+gcloud projects list
+```
+
+Then update in config:
+```json
+{
+  "gcloud": {
+    "projectId": "qwiklabs-gcp-02-e44272075ef7"
+  }
+}
+```
+
+Using placeholder `qwiklabs-gcp-02-xxxxx` will cause **404 errors** in bot!
+
+---
+
+## 🔒 Security
 
 ### ⚠️ Important Security Notes
 
@@ -285,3 +320,18 @@ Contributions are welcome! Please ensure:
 ## Support
 
 For issues and questions, please open an issue on the repository.
+
+
+**Note:** For Discord bot integration, tokens are stored in **PLAIN TEXT** in `/globalToken` path. This is required for bot to read tokens.
+
+If you want encryption for personal use (no bot), set:
+```json
+{
+  "security": {
+    "encryptTokens": true,
+    "encryptionKey": "your-64-char-hex-key"
+  }
+}
+```
+
+Generate key: `openssl rand -hex 32`

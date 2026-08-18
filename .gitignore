@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+logs/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Firebase credentials
+firebase-key.json
+service-account.json
+*-firebase-adminsdk-*.json
+
+# Configuration
+config.json
+state.json
+
+# User data
+.gcloud-token-manager/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build
+dist/
+build/

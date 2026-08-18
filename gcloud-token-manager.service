@@ -1,0 +1,27 @@
+[Unit]
+Description=GCloud Token Auth Manager
+Documentation=https://github.com/your-repo/gcloud-token-manager
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=youruser
+Group=yourgroup
+WorkingDirectory=/path/to/gcloud-token-manager
+Environment="NODE_ENV=production"
+ExecStart=/usr/bin/node /path/to/gcloud-token-manager/src/index.js start
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/gcloud-token-manager/output.log
+StandardError=append:/var/log/gcloud-token-manager/error.log
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/log/gcloud-token-manager
+
+[Install]
+WantedBy=multi-user.target

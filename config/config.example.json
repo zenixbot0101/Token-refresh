@@ -1,0 +1,21 @@
+{
+  "firebase": {
+    "projectId": "your-firebase-project-id",
+    "databaseURL": "https://your-project.firebaseio.com",
+    "serviceAccountPath": "./firebase-key.json"
+  },
+  "user": {
+    "id": "unique-user-id"
+  },
+  "worker": {
+    "intervalMinutes": 30,
+    "retryDelays": [30, 60, 120, 300]
+  },
+  "security": {
+    "encryptTokens": true,
+    "encryptionKey": "generate-a-secure-32-byte-key"
+  },
+  "gcloud": {
+    "projectId": ""
+  }
+}

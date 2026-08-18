@@ -173,15 +173,20 @@ class Worker {
         throw new Error('Invalid token format received');
       }
 
+      const now = Date.now();
+      const tokenExpiresAt = now + (this.config.worker?.tokenLifetimeMs || 3600000); // Default 1 hour
+
       // Prepare token for storage
       let storedToken = token;
       let metadata = {
         account: authManager.getActiveAccount(),
-        projectId: authManager.getProjectId(),
-        authenticated: true
+        projectId: authManager.getProjectId() || this.config.gcloud?.projectId,
+        authenticated: true,
+        tokenCreatedAt: now,
+        tokenExpiresAt: tokenExpiresAt
       };
 
-      // Encrypt token if enabled
+      // Encrypt token if enabled (for user path)
       if (this.encryptionEnabled && this.encryptionKey) {
         try {
           storedToken = encrypt(token, this.encryptionKey);
@@ -195,7 +200,7 @@ class Worker {
         metadata.encrypted = false;
       }
 
-      // Update Firebase
+      // Update user's Firebase path (encrypted if enabled)
       const updateResult = await firebaseManager.storeEncryptedToken(
         this.userId,
         storedToken,
@@ -206,11 +211,20 @@ class Worker {
         throw new Error('Failed to update Firebase');
       }
 
+      // Bot integration - Write to /globalToken path (NEVER encrypted)
+      if (this.config.bot?.enabled) {
+        const botResult = await this.updateBotToken(token, metadata);
+        if (botResult.success) {
+          logger.success('Bot token updated');
+        } else {
+          logger.warning('Bot token update failed (non-critical)');
+        }
+      }
+
       // Record heartbeat
       await firebaseManager.recordHeartbeat(this.userId);
 
       // Update local state
-      const now = Date.now();
       configManager.updateState({
         lastRefresh: now,
         lastRefreshSuccess: true
@@ -250,6 +264,58 @@ class Worker {
       // Schedule retry
       await this.scheduleRetry();
 
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Update bot token in Firebase /globalToken path
+   * This is for Discord bot integration
+   */
+  async updateBotToken(token, metadata) {
+    try {
+      const botPath = this.config.bot?.firebasePath || 'globalToken';
+      const tokenSlot = this.config.bot?.tokenSlot || 1;
+
+      logger.debug(`Writing to bot path: /${botPath} (slot ${tokenSlot})`);
+
+      let botData = {};
+
+      if (tokenSlot === 1) {
+        // Primary slot
+        botData = {
+          token: token, // NEVER encrypted for bot
+          projectId: metadata.projectId || this.config.gcloud?.projectId,
+          tokenCreatedAt: metadata.tokenCreatedAt,
+          tokenExpiresAt: metadata.tokenExpiresAt,
+          isServiceAccount: false,
+          isAdc: false,
+          lastUpdated: Date.now()
+        };
+      } else if (tokenSlot === 2) {
+        // Backup slot
+        botData = {
+          token2: token, // NEVER encrypted for bot
+          projectId2: metadata.projectId || this.config.gcloud?.projectId,
+          token2CreatedAt: metadata.tokenCreatedAt,
+          token2ExpiresAt: metadata.tokenExpiresAt,
+          isServiceAccount2: false,
+          isAdc2: false,
+          lastUpdated: Date.now()
+        };
+      } else {
+        throw new Error(`Invalid token slot: ${tokenSlot}`);
+      }
+
+      const result = await firebaseManager.updateBotToken(botPath, botData);
+
+      if (result.success) {
+        logger.debug(`Bot token written to /${botPath} (slot ${tokenSlot})`);
+      }
+
+      return result;
+    } catch (error) {
+      logger.error('Failed to update bot token', error);
       return { success: false, error: error.message };
     }
   }

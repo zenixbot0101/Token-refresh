@@ -414,6 +414,69 @@ class FirebaseManager {
       return { success: false, error: error.message };
     }
   }
+
+  /**
+   * Update bot token in /globalToken path
+   * Used for Discord bot integration
+   */
+  async updateBotToken(path, data) {
+    try {
+      if (!this.connected) {
+        throw new Error('Firebase is not connected');
+      }
+
+      const botRef = this.db.ref(path);
+
+      // Perform update with retry
+      await retry(
+        async () => {
+          await botRef.update(data);
+        },
+        {
+          retries: 3,
+          delay: 1000,
+          backoff: 2,
+          onRetry: (attempt, maxRetries, delay) => {
+            logger.warning(`Retry ${attempt}/${maxRetries} after ${delay}ms`);
+          }
+        }
+      );
+
+      logger.debug(`Bot token updated at /${path}`);
+
+      return { success: true };
+    } catch (error) {
+      logger.error('Failed to update bot token', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get bot token from /globalToken path
+   */
+  async getBotToken(path = 'globalToken') {
+    try {
+      if (!this.connected) {
+        throw new Error('Firebase is not connected');
+      }
+
+      const botRef = this.db.ref(path);
+      const snapshot = await botRef.once('value');
+
+      if (!snapshot.exists()) {
+        logger.debug(`No bot token found at /${path}`);
+        return { success: true, data: null };
+      }
+
+      const data = snapshot.val();
+      logger.debug(`Retrieved bot token from /${path}`);
+
+      return { success: true, data };
+    } catch (error) {
+      logger.error('Failed to get bot token', error);
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 // Singleton instance

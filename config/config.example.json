@@ -11,6 +11,14 @@
       "universe_domain": "googleapis.com"
     }
   },
+  "gcloud": {
+    "projectId": "qwiklabs-gcp-02-xxxxx"
+  },
+  "bot": {
+    "enabled": true,
+    "tokenSlot": 1,
+    "firebasePath": "globalToken"
+  },
   "user": {
     "id": "unique-user-id"
   },
@@ -19,7 +27,6 @@
     "retryDelays": [30, 60, 120, 300]
   },
   "security": {
-    "encryptTokens": true,
-    "encryptionKey": "generate-a-secure-32-byte-key"
+    "encryptTokens": false
   }
 }

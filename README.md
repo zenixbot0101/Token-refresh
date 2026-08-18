@@ -1,13 +1,14 @@
 # GCloud Token Auth Manager
 
-A Node.js CLI application for managing Google Cloud authentication tokens with Firebase integration on Linux systems.
+A Node.js CLI application for managing Google Cloud authentication tokens with Firebase integration on Linux systems. **Bot-ready** - Automatically writes tokens to Firebase for Discord bot consumption.
 
 ## Features
 
 - ✅ Automatic Google Cloud CLI detection and installation
 - ✅ Firebase Realtime Database integration
-- ✅ Secure token encryption
 - ✅ Automated token refresh (30-minute intervals)
+- ✅ **Bot Integration** - Write tokens to `/globalToken` path for bot
+- ✅ **Dual Slot Support** - Primary (token) + Backup (token2)
 - ✅ Google Cloud authentication management
 - ✅ Graceful shutdown handling
 - ✅ Comprehensive error handling and retry logic
